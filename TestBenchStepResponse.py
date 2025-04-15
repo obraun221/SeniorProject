@@ -151,11 +151,10 @@ async def main():
 
         #Store Data In Arrays
         gyro_data = np.array([gx,gy,gz])
-        gyro_data_deg = np.array([gx*180/math.pi,gy*180/math.pi,gz*180/math.pi])
         accel_data = np.array([ax,ay,az])
 
         #Update Orientation with AHRS Filter
-        ahrs.update_no_magnetometer(gyro_data_deg,accel_data,1/sampling_rate)
+        ahrs.update_no_magnetometer(gyro_data,accel_data,1/sampling_rate)
         euler = ahrs.quaternion.to_euler()
        
    
