@@ -29,18 +29,76 @@ async def main():
     #Create AHRS Filter
     ahrs = imufusion.Ahrs()
     
-    #Starting Attitude
+    #Starting Attitude (Deg)
     attitude = 0
+
+    #Desired Attitude (Deg)
+    desiredAttitde = 0
     
+    #Establish Intial Conditions
+    error = [0, 0, 0]
+    desiredRollRate = [0, 0, 0]
+
+    #Numerator and Denominators for Transfer Function
+    num = [0, 0, 0]
+    den = [0, 0, 0]
+
+    #Moment Of Interia Values
+    Ir = 5.18
+    J = 0.753
+
+    #Intitialize Motor
+    c = moteus.Controller()
+    await c.set_stop()
+
+    #Maximum Wheel Velocity (Hz)
+    maxVelocity = 60
+
+    #System Is Activated Control Loop Will Begin
+    print("Activated")
+
     while True:
+        #Log Start Time
         start_time = time.perf_counter()
+        #Retreieve IMU Data
         gyro_data, accel_data, mag_data = getIMUData(imu, gyro_offset, accel_offset, mag_offset)
-        attitude += gyro_data[2] * 1/SamplingFrequency
+        #Calculate Current Altitude
+        currentAttitude += gyro_data[2] * 1/SamplingFrequency
+        #Calculate Current Error
+        error[0] = desiredAttitde - currentAttitude
+        #Calculate System Roll Rate
+        uterms = num[0] * error[0] + num[1] * error[1] + num[2] * error[2]
+        yterms = den[1] * desiredRollRate[1] + den[2] * desiredRollRate[2]
+        desiredRollRate[0] = uterms - yterms
+        #Calculate Motor Velocity (Hz)
+        deltaRollRate = desiredRollRate[0] - gyro_data[2]
+        deltaMotorVelocity = deltaRollRate * Ir/J
+        motorVelocity += deltaMotorVelocity
+        #Define Maximum Motor Velocity to Establish Wheel Saturation
+        if commanded_velocity > maxVelocity:
+            commanded_velocity = maxVelocity
+        elif commanded_velocity<-maxVelocity:
+            commanded_velocity = -maxVelocity
+
+        #Send Velocity Command to the Motor
+        await c.set_position(position=math.nan,maximum_torque = 1.5, velocity = motorVelocity, accel_limit = 40.0)
+
         #print(f"Orientation: {attitude}, Gyro: {gyro_data}, Accel: {accel_data}, Mag: {mag_data}")
         #print(f"Gyro: {gyro_data}")
         #print(attitude)
+        
+        #Update Error
+        error[2] = error[1]
+        error[1] = error[0]
+        #Update desiredRoll Rate
+        desiredRollRate[2] = desiredRollRate[1]
+        desiredRollRate[1] = desiredRollRate[0]
+
+        #Log End Time
         elapsed = time.perf_counter() - start_time
         time_to_sleep = 1/SamplingFrequency - elapsed
+
+        #Determine If Computation Time Exceeded Sampling Time
         if time_to_sleep > 0:
             time.sleep(time_to_sleep)
         else:
@@ -111,6 +169,10 @@ def getIMUData(imu, gyro_offset, accel_offset, mag_offset):
     accel_data = np.array([ax, ay, az])
     mag_data = np.array([mx, my, mz])
     return [gyro_data, accel_data, mag_data]
+
+def calculateMotorVelocity(desiredAttitude = 0, currentAttitude = 0,  currentRollRate = 0, Ir = 2.0, J = 0.0753):
+    num = [0, 0, 0]
+    den = [0, 0, 0]
 
 
 if __name__ == '__main__':
