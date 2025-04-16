@@ -1,0 +1,109 @@
+#Import Packages Needed
+import time
+import board
+import adafruit_icm20x
+from adafruit_icm20x import MagDataRate
+import numpy as np
+import imufusion
+import math
+import asyncio
+import moteus
+
+#Pin Breakout for Raspberry Pi and ICM20948 IMU
+    #Red is 3V
+    #Black is Ground
+    #Yellow is SCL
+    #Orange is SDA
+
+async def main():
+    #Establish I2C Protocol
+    i2c = board.I2C()
+
+    #Define Accelerometer
+    imu = adafruit_icm20x.ICM20948(i2c)
+
+    #Intialize IMU
+    SamplingFrequency = 100
+    gyro_offset, accel_offset, mag_offset = intializeIMU(imu,sampling_rate = SamplingFrequency)
+
+    #Create AHRS Filter
+    ahrs = imufusion.Ahrs()
+
+    while True:
+        start_time = time.perf_counter()
+        gyro_data, accel_data, mag_data = getIMUData(imu, gyro_offset, accel_offset, mag_offset)
+        attitude = gyro_data[2] / SamplingFrequency
+        print(f"Orientation: {attitude}, Gyro: {gyro_data}, Accel: {accel_data}, Mag: {mag_data}")
+        elapsed = time.perf_counter() - start_time
+        time_to_sleep = 1/SamplingFrequency - elapsed
+        if time_to_sleep > 0:
+            time.sleep(time_to_sleep)
+        else:
+            print("Computation Time Exceeded Sampling Time")
+
+#Input: IMU and Desired Samples Per Second
+#Return: Offsets for Gyro, Accel, and Mag
+def intializeIMU(imu,sampling_rate = 100):
+    #Set Sampling Rates (Number of Samples/second)
+    imu.gyro_data_rate = sampling_rate
+    imu.accelerometer_data_rate = sampling_rate
+    #Set Magnetometer to Maximum Sampling Rate of 100 Hz
+    imu.magnetometer_data_rate = MagDataRate.RATE_100HZ
+
+    #Rolling Average Error Compensation
+    num_samples = 1000
+    #Allocate Arrays
+    gyro_offset = np.zeros(3)
+    accel_offset = np.zeros(3)
+    mag_offset = np.zeros(3)
+    #Loop Through the Number of Samples
+    for i in range(num_samples):
+        gx, gy, gz = imu.gyro
+        gyro_offset += np.array([gx, gy, gz])
+   
+        ax, ay, az = imu.acceleration
+        accel_offset += np.array([ax, ay, az])
+   
+        mx, my, mz = imu.magnetic
+        mag_offset += np.array([mx, my, mz])
+    
+        #Average the offsets
+        gyro_offset /= num_samples
+        accel_offset /= num_samples
+        mag_offset /= num_samples
+
+    return [gyro_offset, accel_offset, mag_offset]
+ 
+def getIMUData(imu, gyro_offset, accel_offset, mag_offset):
+    #Get Gyro Data and Apply Offset
+    gx, gy, gz = imu.gyro
+    gx -= gyro_offset[0]
+    gy -= gyro_offset[1]
+    gz -= gyro_offset[2]
+    #Convert Gyro Data to Deg/s
+    gx *= 180 / math.pi
+    gy *= 180 / math.pi
+    gz *= 180 / math.pi
+
+    #Get Accel Data and Apply Offset
+    ax, ay, az = imu.acceleration
+    ax -= accel_offset[0]
+    ay -= accel_offset[1]
+    az -= accel_offset[2] - 9.081  # Gravity compensation
+    #Convert Accel Data to Gs
+    ax /= 9.801
+    ay /= 9.801
+    az /= 9.801
+
+    #Get Mag Data
+    mx, my, mz = imu.mag
+    mx -= mag_offset[0]
+    my -= mag_offset[1]
+    mz -= mag_offset[2]
+
+    #Return Data In Arrays
+    gyro_data = np.array([gx, gy, gz])
+    accel_data = np.array([ax, ay, az])
+    mag_data = np.array([mx, my, mz])
+    return [gyro_data, accel_data, mag_data]
+
