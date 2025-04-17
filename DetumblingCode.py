@@ -52,9 +52,13 @@ async def main():
     #System Is Activated Control Loop Will Begin
     print("Activated")
 
+    #Set Last Gyro Poll Time
+    last_gyro_poll = time.perf_counter()
+
+    #Intialize Current Attitude
+    currentAttitude = 0
+
     while True:
-        #Log Start Time
-        start_time = time.perf_counter()
         #Retreieve IMU Data
         rollRate = getRollRate(imu,gyro_offset)
         #Calculate Error
