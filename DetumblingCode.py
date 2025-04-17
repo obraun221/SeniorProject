@@ -86,16 +86,6 @@ async def main():
         desiredRollRate[2] = desiredRollRate[1]
         desiredRollRate[1] = desiredRollRate[0]
 
-        #Log End Time
-        elapsed = time.perf_counter() - start_time
-        time_to_sleep = 1/SamplingFrequency - elapsed
-
-        #Determine If Computation Time Exceeded Sampling Time
-        if time_to_sleep > 0:
-            time.sleep(time_to_sleep)
-        else:
-            print("Computation Time Exceeded Sampling Time")
-
 #Input: IMU and Desired Samples Per Second
 #Return: Offsets for Gyro, Accel, and Mag
 def intializeIMU(imu,sampling_rate = 100):
