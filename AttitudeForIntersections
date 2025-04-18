@@ -25,9 +25,6 @@ async def main():
     #Intialize IMU
     SamplingFrequency = 100
     gyro_offset, accel_offset, mag_offset = intializeIMU(imu,sampling_rate = SamplingFrequency)
-
-    #Create AHRS Filter
-    ahrs = imufusion.Ahrs()
     
     #Establish Intial Conditions
     error = [0, 0, 0]
@@ -37,8 +34,9 @@ async def main():
     num = [0.306767031919335,-0.220792579319247, -0.0859744526000870]
     den = [1, -1.92797380591714, 0.931384283030359]
 
-    #Moment Of Interia Values
+    #Moment Intertia of the System
     Ir = 2.072
+    #Moment of Interia of the Wheel
     J = 0.753
 
     #Intitialize Motor
@@ -48,7 +46,7 @@ async def main():
     #Maximum Wheel Velocity (Hz)
     maxVelocity = 30
     
-    #Starting Motor Velocity
+    #Starting Motor Velocity (Hz)
     motorVelocity = 0
 
 
@@ -69,28 +67,27 @@ async def main():
         rollRate = getRollRate(imu,gyro_offset)
         #Set New Gyro Poll Time
         new_gyro_poll = time.perf_counter()
-        #Calculate Current Attitude
+        #Calculate Current Attitude (Angular * Time)
         currentAttitude += rollRate * (new_gyro_poll-last_gyro_poll)
-        #Calculate Error
+        #Calculate Error (Degs)
         error[0] = desiredAttitude - currentAttitude
         #Calculate System Roll Rate
         uterms = num[0] * error[0] + num[1] * error[1] + num[2] * error[2]
         yterms = den[1] * desiredRollRate[1] + den[2] * desiredRollRate[2]
+        #Desired System Roll Rate in Deg/s
         desiredRollRate[0] = uterms - yterms
-        #Relative System Velocoty (Deg/s)
+        #Relative System Velocity (Deg/s)
         deltaRollRate = desiredRollRate[0] - rollRate
-        #Calculate Change Motor Velocity Hz)
+        #Calculate Change Motor Velocity (Hz)
         deltaMotorVelocity = -deltaRollRate * (math.pi/180) * (Ir/J) / (2*math.pi)/10
         #Calculate Motor Velocity
         motorVelocity += deltaMotorVelocity
-        #motorVelocity = 0
         #Define Maximum Motor Velocity to Establish Wheel Saturation
         if motorVelocity > maxVelocity:
             motorVelocity = maxVelocity
         elif motorVelocity<-maxVelocity:
             motorVelocity = -maxVelocity
 
-        #motorVelocity = 0
         #Send Velocity Command to the Motor
         await c.set_position(position=math.nan,maximum_torque = 1.5, velocity = motorVelocity, accel_limit = 40.0)
         
@@ -130,10 +127,10 @@ def intializeIMU(imu,sampling_rate = 100):
         mx, my, mz = imu.magnetic
         mag_offset += np.array([mx, my, mz])
     
-        #Average the offsets
-        gyro_offset /= num_samples
-        accel_offset /= num_samples
-        mag_offset /= num_samples
+    #Average the offsets
+    gyro_offset /= num_samples
+    accel_offset /= num_samples
+    mag_offset /= num_samples
 
     return [gyro_offset, accel_offset, mag_offset]
  

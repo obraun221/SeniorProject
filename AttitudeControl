@@ -55,8 +55,11 @@ async def main():
     #Set Last Gyro Poll Time
     last_gyro_poll = time.perf_counter()
 
-    #Intialize Current Attitude
+    #Intialize Current Attitude (Degs)
     currentAttitude = 0
+
+    #Set Desired Attitude (Degs)
+    desiredAttitude = 90
 
     while True:
         #Retreieve IMU Data
@@ -66,7 +69,11 @@ async def main():
         #Calculate Current Attitude
         currentAttitude += rollRate * (new_gyro_poll-last_gyro_poll)
         #Calculate Error
-        error[0] = -rollRate
+        error[0] = desiredAttitude - currentAttitude
+        #Calculate Desired System Angular Velocity
+
+
+
         #Calculate System Roll Rate
         uterms = num[0] * error[0] + num[1] * error[1] + num[2] * error[2]
         yterms = den[1] * desiredRollRate[1] + den[2] * desiredRollRate[2]
@@ -89,7 +96,7 @@ async def main():
         #Update desiredRoll Rate
         desiredRollRate[2] = desiredRollRate[1]
         desiredRollRate[1] = desiredRollRate[0]
-        
+
         #Update Last Gyro Poll Time
         last_gyro_poll = new_gyro_poll
 
